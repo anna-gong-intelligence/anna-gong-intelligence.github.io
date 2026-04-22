@@ -1,0 +1,2174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>ΛNNΛ — Architecting Intelligent Systems</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@100;200;300;400;500&family=Inter:wght@100;200;300&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+
+<!-- Three.js r160 (UMD, pinned) -->
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+
+<script>
+  window.__TWEAKS__ = /*EDITMODE-BEGIN*/{
+    "theme": "obsidian",
+    "spiceOpacity": 1,
+    "sectionPaddingX": 80,
+    "shaderIntensity": 1,
+    "particleDensity": 1,
+    "snapScroll": true
+  }/*EDITMODE-END*/;
+</script>
+
+<style>
+  /* =========================================================
+     DESIGN TOKENS
+     ========================================================= */
+  :root {
+    --obsidian:   #111111;
+    --void:       #030303;
+    --sand:       #F5F2EB;
+    --bone:       #EAE5D9;
+    --charcoal:   #222222;
+    --spice:      #B85D19;
+    --spice-amber:#A34E24;
+    --spice-deep: #803505;
+    --muted:      #666;
+    --muted-dim:  #3a3a3a;
+
+    --bg:       var(--obsidian);
+    --fg:       var(--bone);
+    --fg-dim:   color-mix(in oklab, var(--fg) 55%, transparent);
+    --fg-mute:  color-mix(in oklab, var(--fg) 32%, transparent);
+    --rule:     color-mix(in oklab, var(--fg) 18%, transparent);
+    --spice-a:  1;
+
+    --px:    80px;
+
+    --h-sans: 'Archivo', ui-sans-serif, system-ui, sans-serif;
+    --h-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  [data-theme="sand"] {
+    --bg: var(--sand);
+    --fg: var(--charcoal);
+    --fg-dim:  color-mix(in oklab, var(--fg) 60%, transparent);
+    --fg-mute: color-mix(in oklab, var(--fg) 35%, transparent);
+    --rule:    color-mix(in oklab, var(--fg) 22%, transparent);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; border-radius: 0 !important; box-shadow: none !important; }
+  html, body { background: var(--bg); color: var(--fg); height: 100%; }
+  body {
+    font-family: var(--h-sans);
+    font-weight: 300;
+    font-size: 13px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: 0.01em;
+    overflow-x: hidden;
+    transition: background-color .6s ease, color .6s ease;
+  }
+  ::selection { background: var(--spice); color: var(--bone); }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  /* =========================================================
+     SNAP-SCROLL SHELL
+     ========================================================= */
+  .stage {
+    height: 100vh;
+    overflow-y: scroll;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+  }
+  .stage[data-snap="on"] {
+    scroll-snap-type: y mandatory;
+  }
+  .stage::-webkit-scrollbar { width: 0; }
+  .stage { scrollbar-width: none; }
+
+  .panel {
+    position: relative;
+    height: 100vh;
+    width: 100%;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    padding: 0 var(--px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* cinematic cross-fade of panel contents */
+  .panel > .panel-inner {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    opacity: 0.18;
+    transform: translateY(24px);
+    transition: opacity 1.4s cubic-bezier(.2,.6,.2,1), transform 1.4s cubic-bezier(.2,.6,.2,1);
+    will-change: opacity, transform;
+  }
+  .panel.is-active > .panel-inner {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* =========================================================
+     WEBGL BACKGROUND
+     ========================================================= */
+  .melange {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    /* fade out WebGL as we leave the hero */
+    opacity: 1;
+    transition: opacity 1.2s ease;
+  }
+  [data-active-section="hero"] .melange  { opacity: 1; }
+  [data-active-section="about"] .melange { opacity: 0.28; }
+  [data-active-section="work"]  .melange { opacity: 0.14; }
+  [data-active-section="contact"] .melange { opacity: 0.06; }
+  .melange canvas { display: block; width: 100%; height: 100%; }
+
+  /* vignette + grain overlay above the shader */
+  .vignette {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at center, transparent 45%, color-mix(in oklab, var(--bg) 80%, transparent) 100%);
+    mix-blend-mode: multiply;
+  }
+
+  main, nav, .tweaks { position: relative; z-index: 2; }
+
+  /* =========================================================
+     NAV
+     ========================================================= */
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: grid; grid-template-columns: 1fr 1fr;
+    align-items: center;
+    padding: 22px var(--px);
+    z-index: 50;
+    mix-blend-mode: difference;
+    color: #EAE5D9;
+    pointer-events: none;
+  }
+  .nav > * { pointer-events: auto; }
+  .nav .brand, .nav .coord, .nav ul {
+    font-family: var(--h-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .nav .brand { opacity: .7; }
+  .nav .coord { opacity: .55; text-align: center; letter-spacing: 0.28em; }
+  .nav ul { list-style: none; display: flex; justify-content: flex-end; gap: 28px; letter-spacing: 0.28em; white-space: nowrap; }
+  .nav a { opacity: .6; transition: color .3s, opacity .3s; }
+  .nav a.on { opacity: 1; color: color-mix(in oklab, var(--spice) calc(var(--spice-a)*100%), var(--fg)); }
+  .nav a:hover { opacity: 1; color: var(--spice); }
+  .nav .num { opacity: .4; margin-right: 8px; }
+
+  /* side rail — section progress */
+  .rail {
+    position: fixed;
+    left: 28px; top: 50%;
+    transform: translateY(-50%);
+    z-index: 50;
+    display: flex; flex-direction: column; gap: 18px;
+    mix-blend-mode: difference;
+    color: #EAE5D9;
+  }
+  .rail .dot {
+    width: 24px; height: 1px;
+    background: currentColor;
+    opacity: .35;
+    transition: width .4s, opacity .4s;
+  }
+  .rail .dot.on {
+    width: 48px;
+    opacity: 1;
+    background: color-mix(in oklab, var(--spice) calc(var(--spice-a)*100%), var(--fg));
+  }
+
+  /* =========================================================
+     GRAIN OVERLAY (over the shader)
+     ========================================================= */
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.035;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  /* =========================================================
+     HERO — ΛNNΛ GONG monolith over accretion disk
+     ========================================================= */
+  .hero { padding: 0 var(--px); }
+  .hero .panel-inner {
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    position: relative;
+  }
+
+  /* top strip — status/awaken (R). Absolutely positioned so the monolith
+     sits on the true viewport center where the eclipse is drawn. */
+  .hero-top {
+    position: absolute;
+    top: 90px;
+    left: var(--px);
+    right: var(--px);
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+    opacity: 0;
+    animation: heroFadeIn 2.4s .4s ease forwards;
+  }
+
+  .hero-coords,
+  .hero-aside {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    line-height: 1.4;
+    font-family: var(--h-mono);
+    font-size: 10px;
+    font-weight: 300;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .hero-aside { align-items: flex-end; }
+  .hero-coords .label,
+  .hero-aside .meta { color: var(--muted-dim); }
+  .hero-coords .val,
+  .hero-aside .meta span { color: var(--bone); opacity: 0.6; margin-left: 0.4rem; }
+
+  .awaken {
+    background: rgba(163, 78, 36, 0.04);
+    border: 1px solid rgba(163, 78, 36, 0.25) !important;
+    color: var(--spice-amber);
+    font-family: var(--h-mono);
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: 0.22em;
+    padding: 0.55rem 1.1rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    transition: background .5s cubic-bezier(.2,.7,.2,1),
+                border-color .5s cubic-bezier(.2,.7,.2,1),
+                color .5s cubic-bezier(.2,.7,.2,1),
+                letter-spacing .5s cubic-bezier(.2,.7,.2,1);
+    margin-top: 0.6rem;
+    position: relative;
+  }
+  .awaken:hover {
+    background: rgba(163, 78, 36, 0.12);
+    border-color: rgba(163, 78, 36, 0.55) !important;
+    color: #d57545;
+    letter-spacing: 0.28em;
+  }
+
+  /* centered ΛNNΛ / GONG monolith — 4-col grid, optical & geometric center align */
+  .hero-monolith-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .hero-monolith {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9rem;
+    opacity: 0;
+    animation: heroMonoIn 3.5s .8s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+  .hero-monolith .row {
+    display: grid;
+    grid-template-columns: repeat(4, 1.4rem);
+    justify-items: center;
+    align-items: center;
+  }
+  .hero-monolith .row span {
+    font-family: 'Inter', sans-serif;
+    font-weight: 200;
+    font-size: 0.78rem;
+    color: var(--bone);
+    text-shadow: 0 0 16px rgba(234, 229, 217, 0.18),
+                 0 0 30px rgba(234, 229, 217, 0.08);
+    line-height: 1;
+  }
+
+  /* bottom — pulse + tagline. Absolutely positioned so the monolith stays
+     locked to viewport center regardless of this strip's height. */
+  .hero-bottom {
+    position: absolute;
+    bottom: 60px;
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9rem;
+    opacity: 0;
+    animation: heroFadeIn 2.4s 1.8s ease forwards;
+  }
+  .hero-pulse {
+    width: 6px;
+    height: 6px;
+    border-radius: 50% !important;
+    background: var(--spice-amber);
+    box-shadow: 0 0 12px var(--spice-amber) !important;
+    animation: heroPulse 2.8s ease-in-out infinite;
+  }
+  .hero-tagline {
+    font-family: var(--h-mono);
+    font-size: 10px;
+    font-weight: 300;
+    letter-spacing: 0.35em;
+    color: var(--muted);
+    text-transform: uppercase;
+    text-align: center;
+  }
+  .hero-tagline .sep { color: var(--spice-amber); opacity: 0.8; margin: 0 0.6em; }
+
+  @keyframes heroFadeIn { to { opacity: 1; } }
+  @keyframes heroMonoIn {
+    from { opacity: 0; transform: scale(1.12); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  @keyframes heroPulse {
+    0%,100% { opacity: 0.3; transform: scale(0.85); }
+    50%     { opacity: 1;   transform: scale(1.1); }
+  }
+
+  /* =========================================================
+     MENTAT TERMINAL
+     ========================================================= */
+  .mentat-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(3, 3, 3, 0.65);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+  }
+  .mentat-backdrop.active { display: flex; opacity: 1; }
+
+  .mentat {
+    width: min(680px, 90vw);
+    height: min(560px, 80vh);
+    background: rgba(8, 8, 8, 0.82);
+    border: 1px solid rgba(163, 78, 36, 0.35);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    display: flex;
+    flex-direction: column;
+    font-family: var(--h-mono);
+    color: var(--bone);
+    transform: translateY(20px) scale(0.98);
+    transition: transform 0.7s cubic-bezier(.2,.8,.2,1);
+    position: relative;
+    overflow: hidden;
+  }
+  .mentat-backdrop.active .mentat { transform: translateY(0) scale(1); }
+
+  .mentat::before, .mentat::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--spice-amber);
+    opacity: 0.7;
+  }
+  .mentat::before { top: 8px; left: 8px; border-right: none; border-bottom: none; }
+  .mentat::after  { bottom: 8px; right: 8px; border-left: none; border-top: none; }
+
+  .mentat-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.4rem;
+    border-bottom: 1px solid rgba(234, 229, 217, 0.06);
+    font-size: 0.62rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .mentat-title {
+    display: flex; align-items: center; gap: 0.7rem;
+    color: var(--spice-amber);
+  }
+  .mentat-title .dot {
+    width: 7px; height: 7px; border-radius: 50% !important;
+    background: var(--spice-amber);
+    box-shadow: 0 0 10px var(--spice-amber) !important;
+    animation: heroPulse 2.8s ease-in-out infinite;
+  }
+  .mentat-close {
+    background: none;
+    border: 1px solid rgba(234, 229, 217, 0.12);
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 0.6rem;
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+    letter-spacing: 0.2em;
+    transition: all 0.3s;
+  }
+  .mentat-close:hover { border-color: var(--spice-amber); color: var(--spice-amber); }
+
+  .mentat-log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.4rem;
+    font-size: 0.78rem;
+    line-height: 1.7;
+    scrollbar-width: thin;
+    scrollbar-color: var(--spice-amber) transparent;
+  }
+  .mentat-log::-webkit-scrollbar { width: 4px; }
+  .mentat-log::-webkit-scrollbar-thumb { background: var(--spice-amber); opacity: 0.3; }
+
+  .msg { margin-bottom: 1rem; }
+  .msg .who {
+    font-size: 0.58rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.3rem;
+  }
+  .msg.mentat-msg .who { color: var(--spice-amber); }
+  .msg.user-msg   .who { color: var(--bone); opacity: 0.7; }
+  .msg .text { color: var(--bone); opacity: 0.92; white-space: pre-wrap; }
+  .msg.mentat-msg .text { opacity: 0.85; }
+  .msg .text::before { content: '> '; color: var(--spice-amber); opacity: 0.7; }
+
+  .cursor-blink {
+    display: inline-block;
+    width: 7px;
+    height: 0.9em;
+    background: var(--spice-amber);
+    vertical-align: -1px;
+    margin-left: 2px;
+    animation: mentatBlink 1s step-end infinite;
+  }
+  @keyframes mentatBlink { 50% { opacity: 0; } }
+
+  .mentat-input-row {
+    display: flex; align-items: center;
+    padding: 1rem 1.4rem;
+    border-top: 1px solid rgba(234, 229, 217, 0.06);
+    gap: 0.7rem;
+  }
+  .mentat-input-row .prompt { color: var(--spice-amber); font-size: 0.8rem; letter-spacing: 0.1em; }
+  .mentat-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--bone);
+    font-family: inherit;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    caret-color: var(--spice-amber);
+  }
+  .mentat-input::placeholder { color: var(--muted-dim); font-style: italic; }
+
+  .quick-suggest {
+    display: flex; gap: 0.5rem;
+    padding: 0 1.4rem 1rem;
+    flex-wrap: wrap;
+  }
+  .chip {
+    font-size: 0.58rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid rgba(234, 229, 217, 0.1);
+    color: var(--muted);
+    background: transparent;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.3s, color 0.3s;
+  }
+  .chip:hover { border-color: var(--spice-amber); color: var(--spice-amber); }
+
+  /* =========================================================
+     SECTION HEAD (universal)
+     ========================================================= */
+  .panel-head {
+    display: grid;
+    grid-template-columns: 120px 1fr auto;
+    align-items: baseline;
+    gap: 40px;
+    padding-top: 120px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .panel-head .idx {
+    font-family: var(--h-mono);
+    font-size: 9.5px; letter-spacing: 0.38em; text-transform: uppercase;
+    color: var(--fg-dim);
+    position: relative; padding-left: 16px;
+  }
+  .panel-head .idx::before {
+    content:""; position:absolute; left:0; top:6px; width:8px; height:1px;
+    background: color-mix(in oklab, var(--spice) calc(var(--spice-a)*100%), transparent);
+  }
+  .panel-head .title {
+    font-weight: 100;
+    font-size: clamp(15px, 1.4vw, 19px);
+    letter-spacing: 0.42em;
+    text-transform: uppercase;
+  }
+  .panel-head .meta {
+    font-family: var(--h-mono);
+    font-size: 9.5px; letter-spacing: 0.32em; text-transform: uppercase;
+    color: var(--fg-dim);
+  }
+
+  /* =========================================================
+     ABOUT — full-bleed 1px card
+     ========================================================= */
+  .about .panel-inner { justify-content: space-between; }
+
+  .about-card {
+    flex: 1;
+    margin: 40px 0 80px;
+    border: 1px solid var(--rule);
+    display: grid;
+    grid-template-columns: 240px 1fr 320px;
+    grid-template-rows: auto 1fr auto;
+    position: relative;
+  }
+  .about-card::before {
+    /* spice accent — 1px hairline at top-left corner */
+    content: "";
+    position: absolute; top: -1px; left: 0; width: 180px; height: 1px;
+    background: color-mix(in oklab, var(--spice) calc(var(--spice-a)*100%), transparent);
+  }
+  .about-card .cell {
+    padding: 36px 40px;
+    border-right: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .about-card .cell:last-child { border-right: 0; }
+  .about-card .cell.b-0 { border-bottom: 0; }
+
+  .about-card .cell.label-cell {
+    font-family: var(--h-mono);
+    font-size: 9.5px; letter-spacing: 0.38em; text-transform: uppercase;
+    color: var(--fg-dim);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .about-card .cell.label-cell .k { color: var(--fg-mute); font-size: 9px; }
+  .about-card .cell.label-cell .v { color: var(--fg); }
+
+  .about-card .lede {
+    grid-column: 2 / 3;
+    grid-row: 1 / 3;
+    font-weight: 200;
+    font-size: clamp(18px, 1.8vw, 26px);
+    line-height: 1.4;
+    letter-spacing: 0.01em;
+    padding: 60px 60px;
+    border-right: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .about-card .lede em {
+    font-style: normal;
+    color: color-mix(in oklab, var(--spice) calc(var(--spice-a)*100%), var(--fg));
+    font-weight: 300;
+  }
+  .about-card .lede .paraB {
+    display: block;
+    margin-top: 20px;
+    font-size: 0.65em;
+    color: var(--fg-dim);
+    line-height: 1.65;
+    max-width: 52ch;
+  }
+
+  .about-card .side {
+    grid-column: 3 / 4;
+    grid-row: 1 / 3;
+    padding: 36px 40px;
+    border-bottom: 1px solid var(--rule);
+    display: flex; flex-direction: column; gap: 18px;
+    font-family: var(--h-mono);
+    font-size: 10px; letter-spacing: 0.06em;
+  }
+  .about-card .side .row { display: grid; grid-template-columns: 72px 1fr; gap: 14px; align-items: start; }
+  .about-card .side .row .k {
+    color: var(--fg-mute); text-transform: uppercase; letter-spacing: 0.32em; font-size: 9px; padding-top: 4px;
+  }
+  .about-card .side .row .v { color: var(--fg); }
+
+  .about-card .strip {
+    grid-column: 1 / 4;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    font-family: var(--h-mono);
+    font-size: 9.5px; letter-spacing: 0.32em; text-transform: uppercase;
+  }
+  .about-card .strip > div {
+    padding: 26px 40px;
+    border-right: 1px solid var(--rule);
+    color: var(--fg-dim);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .about-card .strip > div:last-child { border-right: 0; }
+  .about-card .strip .big {
+    font-family: var(--h-sans);
+    font-weight: 100;
+    font-size: clamp(24px, 2.6vw, 38px);
+    letter-spacing: 0.04em;
+    color: var(--fg);
+  }
+  .about-card .strip .big em {
+    font-style: normal;
+    color: color-mix(in oklab, var(--spice) calc(var(--spice-a)*100%), var(--fg));
+  }
+
+  /* =========================================================
+     WORK — case study grid
+     Six real shipped systems. Each card is a self-contained proof
+     point; the grid as a whole reads as a résumé the eye can scan
+     without thinking. Staggered reveal on scroll-in.
+     ========================================================= */
+  /* Work section grows with content — taller than 100vh */
+  .work { height: auto; min-height: 100vh; }
+  .work .panel-inner {
+    justify-content: flex-start;
+    padding: 110px 0 80px;
+  }
+
+  /* ── Subsection header (Academic / Earlier) ── */
+  .work-sub { margin-top: 56px; }
+  .work-sub-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-top: 1px solid var(--rule);
+    padding-top: 13px;
+    margin-bottom: 0;
+  }
+  .work-sub-head .wsh-label {
+    font-family: var(--h-mono);
+    font-size: 9.5px; letter-spacing: 0.4em; text-transform: uppercase;
+    color: var(--fg-mute);
+  }
+  .work-sub-head .wsh-note {
+    font-family: var(--h-mono);
+    font-size: 8.5px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: var(--fg-mute); opacity: 0.5;
+  }
+
+  /* ── CMU mini-cards ── */
+  .mini-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-left: 1px solid var(--rule);
+  }
+  .mini-card {
+    border-right: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    padding: 22px 22px 20px;
+    display: flex; flex-direction: column;
+    opacity: 0; transform: translateY(10px);
+    transition: opacity 0.9s ease, transform 0.9s ease;
+  }
+  .work.is-active .mini-card { opacity: 1; transform: translateY(0); }
+  .work.is-active .mini-card:nth-child(1) { transition-delay: .70s; }
+  .work.is-active .mini-card:nth-child(2) { transition-delay: .80s; }
+  .work.is-active .mini-card:nth-child(3) { transition-delay: .90s; }
+
+  .mini-card .m-idx {
+    font-family: var(--h-mono); font-size: 8.5px;
+    letter-spacing: 0.38em; text-transform: uppercase; color: var(--fg-mute);
+  }
+  .mini-card .m-t {
+    margin-top: 12px; font-weight: 100;
+    font-size: clamp(13px, 1.2vw, 16px);
+    letter-spacing: 0.12em; text-transform: uppercase; line-height: 1.3;
+  }
+  .mini-card .m-d {
+    margin-top: 10px; font-family: var(--h-mono);
+    font-size: 9.5px; line-height: 1.6; color: var(--fg-dim); flex: 1;
+  }
+  .mini-card .m-metric {
+    margin-top: 14px;
+    font-weight: 100; font-size: clamp(18px, 1.5vw, 22px); letter-spacing: 0.04em;
+    color: color-mix(in oklab, var(--spice) calc(var(--spice-a)*80%), var(--fg));
+  }
+  .mini-card .m-metric em { font-style: normal; font-size: 0.62em; opacity: 0.8; }
+  .mini-card .m-tags {
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid var(--rule);
+    font-family: var(--h-mono); font-size: 8px;
+    letter-spacing: 0.28em; text-transform: uppercase; color: var(--fg-dim);
+  }
+
+  /* ── Internship strip ── */
+  .intern-strip {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    border-left: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .intern-item {
+    border-right: 1px solid var(--rule);
+    padding: 22px 22px 20px;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+  }
+  .work.is-active .intern-item { opacity: 1; }
+  .work.is-active .intern-item:nth-child(1) { transition-delay: 1.0s; }
+  .work.is-active .intern-item:nth-child(2) { transition-delay: 1.1s; }
+  .work.is-active .intern-item:nth-child(3) { transition-delay: 1.2s; }
+
+  .intern-item .i-co {
+    font-family: var(--h-sans); font-weight: 100;
+    font-size: clamp(13px, 1.1vw, 16px);
+    letter-spacing: 0.16em; text-transform: uppercase;
+  }
+  .intern-item .i-role {
+    margin-top: 3px; font-family: var(--h-mono); font-size: 8.5px;
+    letter-spacing: 0.3em; text-transform: uppercase;
+    color: color-mix(in oklab, var(--spice) calc(var(--spice-a)*65%), var(--fg-dim));
+  }
+  .intern-item .i-yr {
+    margin-top: 2px; font-family: var(--h-mono); font-size: 8px;
+    letter-spacing: 0.28em; text-transform: uppercase; color: var(--fg-mute);
+  }
+  .intern-item .i-pts { margin-top: 14px; display: flex; flex-direction: column; gap: 7px; }
+  .intern-item .i-pt {
+    font-family: var(--h-mono); font-size: 9.5px; line-height: 1.55;
+    color: var(--fg-dim); padding-left: 14px; position: relative;
+  }
+  .intern-item .i-pt::before {
+    content: "—"; position: absolute; left: 0; color: var(--fg-mute);
+  }
+  .intern-item .i-metric {
+    margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--rule);
+    font-family: var(--h-sans); font-weight: 200;
+    font-size: clamp(13px, 1.1vw, 16px); letter-spacing: 0.06em;
+    color: color-mix(in oklab, var(--spice) calc(var(--spice-a)*75%), var(--fg));
+  }
+
+  /* ── Education strip ── */
+  .edu-strip {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    border-left: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .edu-item {
+    border-right: 1px solid var(--rule);
+    padding: 28px 28px 24px;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    position: relative;
+  }
+  /* spice hairline at top of each school — the accent that signals "elite" */
+  .edu-item::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 60px; height: 1px;
+    background: color-mix(in oklab, var(--spice) calc(var(--spice-a)*70%), transparent);
+  }
+  .work.is-active .edu-item { opacity: 1; }
+  .work.is-active .edu-item:nth-child(1) { transition-delay: 1.3s; }
+  .work.is-active .edu-item:nth-child(2) { transition-delay: 1.45s; }
+
+  .edu-school {
+    font-family: var(--h-sans);
+    font-weight: 100;
+    font-size: clamp(16px, 1.5vw, 22px);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg);
+    line-height: 1.2;
+  }
+  .edu-loc {
+    margin-top: 5px;
+    font-family: var(--h-mono);
+    font-size: 9px; letter-spacing: 0.32em; text-transform: uppercase;
+    color: color-mix(in oklab, var(--spice) calc(var(--spice-a)*70%), var(--fg-dim));
+  }
+  .edu-degree {
+    margin-top: 18px;
+    font-family: var(--h-mono);
+    font-size: 10.5px; letter-spacing: 0.12em;
+    color: var(--fg);
+    line-height: 1.4;
+  }
+  .edu-field {
+    margin-top: 4px;
+    font-family: var(--h-mono);
+    font-size: 9.5px; letter-spacing: 0.1em;
+    color: var(--fg-dim);
+  }
+  .edu-meta {
+    margin-top: 18px; padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .edu-gpa {
+    font-family: var(--h-sans); font-weight: 100;
+    font-size: clamp(20px, 1.8vw, 26px); letter-spacing: 0.04em;
+    color: color-mix(in oklab, var(--spice) calc(var(--spice-a)*85%), var(--fg));
+  }
+  .edu-yr {
+    font-family: var(--h-mono); font-size: 9px;
+    letter-spacing: 0.32em; text-transform: uppercase;
+    color: var(--fg-mute);
+  }
+
+  .case-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    margin: 40px 0 36px;
+    border-top: 1px solid var(--rule);
+    border-left: 1px solid var(--rule);
+  }
+
+  .case-card {
+    border-right: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    padding: 32px 28px 28px;
+    display: flex;
+    flex-direction: column;
+    min-height: 268px;
+    position: relative;
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 1.1s cubic-bezier(.2,.7,.2,1),
+                transform 1.1s cubic-bezier(.2,.7,.2,1),
+                border-color .35s ease;
+  }
+  .work.is-active .case-card {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .work.is-active .case-card:nth-child(1) { transition-delay: .10s, .10s, 0s; }
+  .work.is-active .case-card:nth-child(2) { transition-delay: .20s, .20s, 0s; }
+  .work.is-active .case-card:nth-child(3) { transition-delay: .30s, .30s, 0s; }
+  .work.is-active .case-card:nth-child(4) { transition-delay: .40s, .40s, 0s; }
+  .work.is-active .case-card:nth-child(5) { transition-delay: .50s, .50s, 0s; }
+  .work.is-active .case-card:nth-child(6) { transition-delay: .60s, .60s, 0s; }
+
+  .case-card:hover {
+    border-color: color-mix(in oklab, var(--spice) calc(var(--spice-a)*55%), var(--rule));
+    z-index: 1;
+  }
+  /* spice corner-bracket that lights up on hover */
+  .case-card::before,
+  .case-card::after {
+    content: "";
+    position: absolute;
+    width: 12px; height: 12px;
+    border-style: solid;
+    border-color: color-mix(in oklab, var(--spice) calc(var(--spice-a)*90%), transparent);
+    opacity: 0;
+    transition: opacity .3s ease;
+    pointer-events: none;
+  }
+  .case-card::before { top: -1px;    left: -1px;    border-width: 1px 0 0 1px; }
+  .case-card::after  { bottom: -1px; right: -1px;   border-width: 0 1px 1px 0; }
+  .case-card:hover::before,
+  .case-card:hover::after { opacity: 1; }
+
+  .case-card .idx {
+    font-family: var(--h-mono);
+    font-size: 9px;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--fg-mute);
+  }
+  .case-card .idx em {
+    font-style: normal;
+    color: color-mix(in oklab, var(--spice) calc(var(--spice-a)*85%), var(--fg));
+    margin-right: 8px;
+  }
+
+  .case-card .t {
+    margin-top: 18px;
+    font-family: var(--h-sans);
+    font-weight: 100;
+    font-size: clamp(16px, 1.5vw, 20px);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    line-height: 1.25;
+    color: var(--fg);
+  }
+
+  .case-card .d {
+    margin-top: 14px;
+    font-family: var(--h-mono);
+    font-size: 10px;
+    line-height: 1.65;
+    color: var(--fg-dim);
+    max-width: 34ch;
+  }
+
+  .case-card .metric {
+    margin-top: auto;
+    padding-top: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1;
+  }
+  .case-card .metric .v {
+    font-family: var(--h-sans);
+    font-weight: 100;
+    font-size: clamp(26px, 2.4vw, 34px);
+    letter-spacing: 0.02em;
+    color: color-mix(in oklab, var(--spice) calc(var(--spice-a)*100%), var(--fg));
+  }
+  .case-card .metric .v em {
+    font-style: normal;
+    font-weight: 200;
+    font-size: 0.58em;
+    margin-left: 2px;
+    opacity: 0.8;
+  }
+  .case-card .metric .k {
+    margin-top: 8px;
+    font-family: var(--h-mono);
+    font-size: 8.5px;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--fg-mute);
+  }
+
+  .case-card .tags {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    font-family: var(--h-mono);
+    font-size: 8.5px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--fg-dim);
+  }
+  .case-card .tags .sep { color: var(--fg-mute); margin: 0 0.5em; }
+
+  /* ── summary strip under the grid ── */
+  .work-foot {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    padding: 22px 0;
+  }
+  .work-foot > div {
+    padding: 0 28px;
+    border-right: 1px solid var(--rule);
+    font-family: var(--h-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+  }
+  .work-foot > div:last-child { border-right: none; }
+  .work-foot .t { color: var(--fg-mute); margin-bottom: 8px; }
+  .work-foot .v {
+    color: var(--fg);
+    font-family: var(--h-sans);
+    font-weight: 200;
+    font-size: 18px;
+    letter-spacing: 0.06em;
+    text-transform: none;
+  }
+  .work-foot .v em {
+    font-style: normal;
+    color: color-mix(in oklab, var(--spice) calc(var(--spice-a)*100%), var(--fg));
+  }
+
+  /* =========================================================
+     CONTACT
+     ========================================================= */
+  .contact .panel-inner { justify-content: center; align-items: stretch; }
+  .contact-wrap {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: end;
+    padding: 120px 0 60px;
+    gap: 80px;
+    position: relative;
+  }
+  .contact-wrap::before {
+    content: ""; position: absolute; top: 120px; left: 0; right: 0; height: 1px;
+    background: var(--rule);
+  }
+  .contact h2 {
+    font-weight: 100;
+    font-size: clamp(48px, 8vw, 128px);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 0.95;
+  }
+  .contact h2 em {
+    font-style: normal;
+    color: color-mix(in oklab, var(--spice) calc(var(--spice-a)*100%), var(--fg));
+  }
+  .contact .channels {
+    display: flex; flex-direction: column; gap: 0;
+    font-family: var(--h-mono);
+    font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase;
+  }
+  .contact .channels a {
+    padding: 18px 0;
+    border-bottom: 1px solid var(--rule);
+    display: grid; grid-template-columns: auto 1fr auto; gap: 24px; align-items: baseline;
+    transition: color .3s, padding-left .3s;
+  }
+  .contact .channels a .k { color: var(--fg-mute); font-size: 9px; letter-spacing: 0.36em; }
+  .contact .channels a:hover {
+    color: color-mix(in oklab, var(--spice) calc(var(--spice-a)*100%), var(--fg));
+    padding-left: 10px;
+  }
+  .contact .channels a .arr { opacity: .5; transition: transform .3s, opacity .3s; }
+  .contact .channels a:hover .arr { opacity: 1; transform: translateX(6px); }
+
+  .contact-foot {
+    position: absolute; left: var(--px); right: var(--px); bottom: 30px;
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    font-family: var(--h-mono);
+    font-size: 9.5px; letter-spacing: 0.32em; text-transform: uppercase;
+    color: var(--fg-mute);
+    padding-top: 20px;
+    border-top: 1px solid var(--rule);
+  }
+  .contact-foot .c { text-align: center; }
+  .contact-foot .r { text-align: right; }
+
+  /* =========================================================
+     TWEAKS PANEL
+     ========================================================= */
+  .tweaks {
+    position: fixed;
+    right: 24px; bottom: 24px;
+    width: 320px;
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    padding: 20px 20px 18px;
+    z-index: 100;
+    display: none;
+    font-family: var(--h-mono);
+    color: var(--fg);
+  }
+  .tweaks.open { display: block; }
+  .tweaks h4 {
+    font-size: 10px;
+    letter-spacing: 0.36em;
+    text-transform: uppercase;
+    font-weight: 400;
+    color: var(--fg-dim);
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--rule);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .tweaks h4 .dot {
+    display: inline-block; width: 6px; height: 6px;
+    background: color-mix(in oklab, var(--spice) calc(var(--spice-a)*100%), transparent);
+  }
+  .tweaks .group { padding: 14px 0; border-bottom: 1px solid var(--rule); }
+  .tweaks .group:last-child { border-bottom: 0; }
+  .tweaks .row {
+    display: grid; grid-template-columns: 1fr auto; gap: 10px;
+    align-items: center;
+    font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: var(--fg-dim);
+    margin-bottom: 8px;
+  }
+  .tweaks .row .val { color: var(--fg); font-variant-numeric: tabular-nums; }
+
+  input[type="range"].dune {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 24px; background: transparent; margin: 0; padding: 0; display: block;
+  }
+  input[type="range"].dune::-webkit-slider-runnable-track { height: 1px; background: var(--rule); border: 0; }
+  input[type="range"].dune::-moz-range-track              { height: 1px; background: var(--rule); border: 0; }
+  input[type="range"].dune::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 1px; height: 18px; margin-top: -9px;
+    background: color-mix(in oklab, var(--spice) calc(var(--spice-a)*100%), var(--fg));
+    border: 0;
+  }
+  input[type="range"].dune::-moz-range-thumb {
+    width: 1px; height: 18px;
+    background: color-mix(in oklab, var(--spice) calc(var(--spice-a)*100%), var(--fg)); border: 0;
+  }
+
+  .theme-switch {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+    margin-top: 8px;
+    border: 1px solid var(--rule);
+  }
+  .theme-switch button {
+    padding: 9px 10px;
+    font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--fg-dim);
+    border-right: 1px solid var(--rule);
+  }
+  .theme-switch button:last-child { border-right: 0; }
+  .theme-switch button.on { color: var(--fg); background: color-mix(in oklab, var(--spice) calc(var(--spice-a)*25%), transparent); }
+
+  .toggle {
+    display: flex; align-items: center; justify-content: space-between;
+    border: 1px solid var(--rule); padding: 9px 12px;
+    font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--fg-dim); cursor: pointer; user-select: none;
+    margin-top: 6px;
+  }
+  .toggle .sw { width: 28px; height: 10px; border: 1px solid var(--rule); position: relative; }
+  .toggle .sw::after {
+    content: ""; position: absolute; top: -1px; left: -1px; width: 12px; height: 10px;
+    background: var(--fg-mute); transition: left .25s, background .25s;
+  }
+  .toggle.on { color: var(--fg); }
+  .toggle.on .sw::after { left: 15px; background: color-mix(in oklab, var(--spice) calc(var(--spice-a)*100%), var(--fg)); }
+
+  /* =========================================================
+     RESPONSIVE
+     ========================================================= */
+  @media (max-width: 1280px) {
+    .nav .coord { display: none; }
+    .nav { grid-template-columns: 1fr auto; }
+  }
+  @media (max-width: 1100px) {
+    :root { --px: 40px; }
+    .rail { display: none; }
+    .about-card { grid-template-columns: 180px 1fr 1fr; }
+    .about-card .lede { padding: 36px 36px; }
+    .case-grid { grid-template-columns: repeat(2, 1fr); }
+    .mini-grid { grid-template-columns: repeat(2, 1fr); }
+    .nav ul { gap: 20px; }
+    .nav .brand { font-size: 9px; letter-spacing: 0.26em; }
+  }
+  @media (max-width: 800px) {
+    :root { --px: 24px; }
+    .stage[data-snap="on"] { scroll-snap-type: none; }
+    .panel { height: auto; min-height: 100vh; }
+    .nav .coord { display: none; }
+    .about-card { grid-template-columns: 1fr; }
+    .about-card .cell, .about-card .lede, .about-card .side { border-right: 0; }
+    .about-card .lede, .about-card .side { grid-column: 1; grid-row: auto; padding: 28px 24px; }
+    .about-card .strip { grid-template-columns: 1fr 1fr; }
+    .about-card .strip > div:nth-child(2) { border-right: 0; }
+    .about-card .strip > div:nth-child(-n+2) { border-bottom: 1px solid var(--rule); }
+    .case-grid { grid-template-columns: 1fr; }
+    .case-card { min-height: 220px; padding: 28px 24px 24px; }
+    .mini-grid, .intern-strip, .edu-strip { grid-template-columns: 1fr; }
+    .work-foot { grid-template-columns: 1fr; }
+    .work-foot > div { border-right: none; border-bottom: 1px solid var(--rule); padding: 14px 0; }
+    .work-foot > div:last-child { border-bottom: none; }
+    .contact-wrap { grid-template-columns: 1fr; gap: 40px; }
+    .hero { padding: 0 24px; }
+    .hero .panel-inner { padding: 80px 0 40px; }
+    .hero-monolith .row { grid-template-columns: repeat(4, 1rem); }
+    .hero-monolith .row span { font-size: 0.65rem; }
+    .hero-coords, .hero-aside { font-size: 9px; }
+    .hero-tagline { font-size: 8.5px; letter-spacing: 0.25em; }
+    .tweaks { left: 16px; right: 16px; width: auto; bottom: 16px; }
+  }
+</style>
+</head>
+<body data-active-section="hero">
+
+<!-- ============ WEBGL ACCRETION DISK (full-viewport, fixed) ============ -->
+<div class="melange" id="melange"></div>
+<div class="vignette" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<!-- ============ NAV ============ -->
+<nav class="nav" aria-label="Primary">
+  <div class="brand">A — D.S. / AI</div>
+  <ul>
+    <li><a href="#hero" class="on" data-link="hero"><span class="num">01</span>Index</a></li>
+    <li><a href="#about"   data-link="about"><span class="num">02</span>About</a></li>
+    <li><a href="#work"    data-link="work"><span class="num">03</span>Work</a></li>
+    <li><a href="#contact" data-link="contact"><span class="num">04</span>Transmit</a></li>
+  </ul>
+</nav>
+
+<!-- side rail -->
+<div class="rail" aria-hidden="true">
+  <span class="dot on" data-rail="hero"></span>
+  <span class="dot"    data-rail="about"></span>
+  <span class="dot"    data-rail="work"></span>
+  <span class="dot"    data-rail="contact"></span>
+</div>
+
+<!-- ============ SCROLL STAGE ============ -->
+<main class="stage" id="stage" data-snap="on">
+
+  <!-- ================= HERO ================= -->
+  <section id="hero" class="panel hero is-active" data-screen-label="01 Hero" data-section="hero">
+    <div class="panel-inner">
+
+      <div class="hero-top">
+        <div class="hero-aside">
+          <div class="meta">STATUS&nbsp;&nbsp;<span>LUCID</span></div>
+          <div class="meta">UPLINK&nbsp;&nbsp;<span>STABLE</span></div>
+          <button class="awaken" id="awaken-btn" type="button">✦ &nbsp; AWAKEN MENTAT</button>
+        </div>
+      </div>
+
+      <div class="hero-monolith-wrap">
+        <div class="hero-monolith" aria-label="ANNA GONG">
+          <div class="row"><span>Λ</span><span>N</span><span>N</span><span>Λ</span></div>
+          <div class="row"><span>G</span><span>O</span><span>N</span><span>G</span></div>
+        </div>
+      </div>
+
+      <div class="hero-bottom">
+        <div class="hero-pulse" aria-hidden="true"></div>
+        <div class="hero-tagline">
+          DATA SCIENTIST <span class="sep">//</span> ARCHITECTING INTELLIGENT SYSTEMS
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= ABOUT ================= -->
+  <section id="about" class="panel about" data-screen-label="02 About" data-section="about">
+    <div class="panel-inner">
+
+      <div class="panel-head">
+        <div class="idx">02 / Profile</div>
+        <div class="title">Biography &nbsp;·&nbsp; Operating Principles</div>
+        <div class="meta">Ref. 002 — ANNA</div>
+      </div>
+
+      <div class="about-card">
+        <div class="cell label-cell">
+          <div class="k">Designation</div>
+          <div class="v">Anna Gong — Data Scientist</div>
+          <div class="k" style="margin-top:22px">Discipline</div>
+          <div class="v">LLM Applications · Anomaly Detection · Forecasting</div>
+          <div class="k" style="margin-top:22px">Orientation</div>
+          <div class="v">Production-first · Business-impact driven</div>
+        </div>
+
+        <p class="lede">
+          I build <em>AI systems</em> that convert raw data into measurable
+          outcomes — LLM-powered automation, time-series anomaly detection,
+          telematics forecasting, and evaluation frameworks that put
+          production teams in control.
+
+          <span class="paraB">
+            The work lives at the intersection of data science and systems
+            thinking: shipping things that scale, hold up in production,
+            and deliver lift that shows up in the P&amp;L. $12M+ in verified
+            impact across five production systems at Fortune 200 scale.
+          </span>
+        </p>
+
+        <div class="side">
+          <div class="row"><div class="k">Based</div>        <div class="v">Dallas, TX</div></div>
+          <div class="row"><div class="k">Focus</div>        <div class="v">Applied ML · LLM Applications · Anomaly Detection</div></div>
+          <div class="row"><div class="k">Stack</div>        <div class="v">Python · SQL · AWS · GCP · Snowflake · PyTorch</div></div>
+          <div class="row"><div class="k">Frameworks &amp; Tools</div><div class="v">Vertex AI · AWS Bedrock · Flask · Streamlit · Tableau</div></div>
+          <div class="row"><div class="k">Education</div>    <div class="v">CMU · GPA 3.87 &nbsp;·&nbsp; Renmin Univ. of China · GPA 3.92</div></div>
+          <div class="row"><div class="k">Open to</div>      <div class="v">DS · MLE · AI Engineer · SF Bay Area / Relocation</div></div>
+        </div>
+
+        <div class="strip">
+          <div>
+            <span>Impact</span>
+            <span class="big">$12<em>M+</em></span>
+            <span>revenue &amp; savings delivered</span>
+          </div>
+          <div>
+            <span>Systems</span>
+            <span class="big"><em>05</em></span>
+            <span>PACCAR AI systems shipped</span>
+          </div>
+          <div>
+            <span>Users</span>
+            <span class="big">600<em>+</em></span>
+            <span>active on HR chatbot</span>
+          </div>
+          <div>
+            <span>Accuracy</span>
+            <span class="big">95<em>%</em></span>
+            <span>forecast · up from 65%</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= WORK ================= -->
+  <section id="work" class="panel work" data-screen-label="03 Work" data-section="work">
+    <div class="panel-inner">
+
+      <div class="panel-head">
+        <div class="idx">03 / Work</div>
+        <div class="title">Shipped &nbsp;Work &nbsp;·&nbsp; 2019–2025</div>
+        <div class="meta">PACCAR · CMU · PPG · Kuaishou · Amazon</div>
+      </div>
+
+      <div class="case-grid">
+
+        <!-- 01 · WARRANTY GPT -->
+        <article class="case-card">
+          <div class="idx"><em>01</em>PACCAR · 2024</div>
+          <h3 class="t">Warranty<br/>GPT Pipeline</h3>
+          <p class="d">
+            GPT-based system that auto-summarizes and categorizes warranty
+            claims at scale — replacing manual review by engineering teams.
+          </p>
+          <div class="metric">
+            <div class="v">$3.3<em>M+</em></div>
+            <div class="k">engineering labor saved</div>
+          </div>
+          <div class="tags">LLM <span class="sep">·</span> NLP <span class="sep">·</span> Classification</div>
+        </article>
+
+        <!-- 02 · ANOMALY DETECTION -->
+        <article class="case-card">
+          <div class="idx"><em>02</em>PACCAR · 2023</div>
+          <h3 class="t">Anomaly<br/>Detection System</h3>
+          <p class="d">
+            Time-series anomaly detection over curated Snowflake datasets
+            with a real-time Streamlit diagnostic dashboard — surfaces
+            emerging part-failure patterns before they scale.
+          </p>
+          <div class="metric">
+            <div class="v">$8.7<em>M+</em></div>
+            <div class="k">in downstream savings</div>
+          </div>
+          <div class="tags">Time-Series <span class="sep">·</span> Snowflake <span class="sep">·</span> Streamlit</div>
+        </article>
+
+        <!-- 03 · TELEMATICS FORECAST -->
+        <article class="case-card">
+          <div class="idx"><em>03</em>PACCAR · 2024</div>
+          <h3 class="t">Telematics<br/>Forecasting</h3>
+          <p class="d">
+            Forecasts customer replacement windows from remote diagnostic
+            data, vehicle age/mileage, and purchase history — powers
+            targeted outreach by the sales org.
+          </p>
+          <div class="metric">
+            <div class="v">~$1.5<em>M</em></div>
+            <div class="k">orders converted</div>
+          </div>
+          <div class="tags">Forecasting <span class="sep">·</span> Telematics <span class="sep">·</span> Sales</div>
+        </article>
+
+        <!-- 04 · HR CHATBOT -->
+        <article class="case-card">
+          <div class="idx"><em>04</em>PACCAR · 2024</div>
+          <h3 class="t">HR Chatbot<br/>on Bedrock</h3>
+          <p class="d">
+            Custom LLM chatbot deployed on AWS Bedrock with a bespoke
+            evaluation framework — broadens access to HR knowledge
+            across the organization.
+          </p>
+          <div class="metric">
+            <div class="v">600<em>+</em></div>
+            <div class="k">active employees</div>
+          </div>
+          <div class="tags">AWS Bedrock <span class="sep">·</span> RAG <span class="sep">·</span> Eval</div>
+        </article>
+
+        <!-- 05 · MARKET RESEARCH LLM -->
+        <article class="case-card">
+          <div class="idx"><em>05</em>PACCAR · 2025</div>
+          <h3 class="t">Market Research<br/>LLM Pipeline</h3>
+          <p class="d">
+            LLM pipeline that quantifies sentiment trends across a decade
+            of market research and links them to sales forecasts —
+            predictive insights that guide executive strategy.
+          </p>
+          <div class="metric">
+            <div class="v">10<em>yrs</em></div>
+            <div class="k">of research analyzed</div>
+          </div>
+          <div class="tags">LLM <span class="sep">·</span> Sentiment <span class="sep">·</span> Forecasting</div>
+        </article>
+
+      </div>
+
+      <div class="work-foot">
+        <div>
+          <div class="t">Total impact at PACCAR</div>
+          <div class="v">$<em>12M+</em></div>
+        </div>
+        <div>
+          <div class="t">Production systems</div>
+          <div class="v"><em>05</em> at Fortune 200 scale</div>
+        </div>
+        <div>
+          <div class="t">Employers</div>
+          <div class="v">PACCAR <span style="opacity:.5">·</span> PPG <span style="opacity:.5">·</span> Kuaishou <span style="opacity:.5">·</span> Amazon</div>
+        </div>
+      </div>
+
+      <!-- ── EARLIER EXPERIENCE ────────────────────────────── -->
+      <div class="work-sub">
+        <div class="work-sub-head">
+          <span class="wsh-label">Earlier Experience</span>
+          <span class="wsh-note">2019–2022</span>
+        </div>
+        <div class="intern-strip">
+
+          <div class="intern-item">
+            <div class="i-co">PPG Industries</div>
+            <div class="i-role">AI / ML Intern</div>
+            <div class="i-yr">Pittsburgh, PA · Summer 2022</div>
+            <div class="i-pts">
+              <div class="i-pt">12+ time-series forecasting models (AutoARIMA, Prophet, Exponential Smoothing) — accuracy 65% → 95%</div>
+              <div class="i-pt">Auto-Forecaster framework: self-tunes hyperparameters, cuts iteration from weeks to &lt;5 min</div>
+              <div class="i-pt">SHAP + LIME explainability to surface macroeconomic pricing drivers for procurement</div>
+            </div>
+            <div class="i-metric">65% → 95% forecast accuracy</div>
+          </div>
+
+          <div class="intern-item">
+            <div class="i-co">Kuaishou Technology</div>
+            <div class="i-role">Data Science &amp; Analytics Intern</div>
+            <div class="i-yr">Beijing, China · 2020–2021</div>
+            <div class="i-pts">
+              <div class="i-pt">PSM + Difference-in-Difference causal model to evaluate event ROI across 1B+ user dataset</div>
+              <div class="i-pt">Random Forest for game-video interest prediction — AUC 0.76, improved cold-start for new launches</div>
+              <div class="i-pt">Hive SQL + Python for user growth, retention, and metric attribution at platform scale</div>
+            </div>
+            <div class="i-metric">+55.2% impressions · AUC 0.76</div>
+          </div>
+
+          <div class="intern-item">
+            <div class="i-co">Amazon</div>
+            <div class="i-role">Business Intelligence Intern</div>
+            <div class="i-yr">Beijing, China · 2019</div>
+            <div class="i-pts">
+              <div class="i-pt">2 ETL pipelines for India product return data — reduced return rate by 4%</div>
+              <div class="i-pt">Automated SQL pipelines for India warehouse launches — +15% data accuracy, saved 2 hrs/day manual work</div>
+              <div class="i-pt">9 Tableau dashboards monitoring global Direct Fulfillment vendor performance</div>
+            </div>
+            <div class="i-metric">−4% return rate · 9 dashboards</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── ACADEMIC PROJECTS ────────────────────────────── -->
+      <div class="work-sub">
+        <div class="work-sub-head">
+          <span class="wsh-label">Academic Projects · Carnegie Mellon University</span>
+          <span class="wsh-note">2021–2022</span>
+        </div>
+        <div class="mini-grid">
+
+          <article class="mini-card">
+            <div class="m-idx">Recommender System</div>
+            <h4 class="m-t">Collaborative<br/>Filtering + PMF</h4>
+            <p class="m-d">Memory-based collaborative filtering and Probabilistic Matrix Factorization on the Netflix Prize dataset (850k+ ratings) to predict movie ratings.</p>
+            <div class="m-metric">0.93 <em>RMSE</em></div>
+            <div class="m-tags">Collaborative Filtering · PMF · Matrix Factorization</div>
+          </article>
+
+          <article class="mini-card">
+            <div class="m-idx">Kaggle · NLP Competition · Top 15%</div>
+            <h4 class="m-t">Argument<br/>Effectiveness Grading</h4>
+            <p class="m-d">Ensemble of BERT, RoBERTa, DeBERTa, and XLNet to rate the effectiveness of argumentative writing from 36,000+ student essays.</p>
+            <div class="m-metric">0.607 <em>Log Loss</em></div>
+            <div class="m-tags">BERT · RoBERTa · DeBERTa · Ensemble</div>
+          </article>
+
+          <article class="mini-card">
+            <div class="m-idx">Capstone · Tata Consultancy Services</div>
+            <h4 class="m-t">Fraud Detection<br/>via GAN</h4>
+            <p class="m-d">GAN-based data augmentation framework to resolve class imbalance in fraud detection — improving model recall without oversampling bias.</p>
+            <div class="m-metric">+30<em>%</em> recall</div>
+            <div class="m-tags">GAN · Class Imbalance · Fraud Detection</div>
+          </article>
+
+        </div>
+      </div>
+
+      <!-- ── EDUCATION ────────────────────────────── -->
+      <div class="work-sub">
+        <div class="work-sub-head">
+          <span class="wsh-label">Education</span>
+          <span class="wsh-note">2016–2022</span>
+        </div>
+        <div class="edu-strip">
+
+          <div class="edu-item">
+            <div class="edu-school">Carnegie Mellon University</div>
+            <div class="edu-loc">Pittsburgh, PA · #1 Information Systems in the US — U.S. News</div>
+            <div class="edu-degree">Master of Information Systems Management</div>
+            <div class="edu-field">Business Intelligence &amp; Data Analytics</div>
+            <div class="edu-meta">
+              <span class="edu-gpa">GPA 3.87</span>
+              <span class="edu-yr">2021 – 2022</span>
+            </div>
+          </div>
+
+          <div class="edu-item">
+            <div class="edu-school">Renmin University of China</div>
+            <div class="edu-loc">Beijing, China · #1 Business School in China</div>
+            <div class="edu-degree">Bachelor of Financial Management</div>
+            <div class="edu-field">School of Business</div>
+            <div class="edu-meta">
+              <span class="edu-gpa">GPA 3.92</span>
+              <span class="edu-yr">2016 – 2020</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= CONTACT ================= -->
+  <section id="contact" class="panel contact" data-screen-label="04 Contact" data-section="contact">
+    <div class="panel-inner">
+
+      <div class="panel-head">
+        <div class="idx">04 / Transmit</div>
+        <div class="title">Open &nbsp; a &nbsp; Channel</div>
+        <div class="meta">Response · &lt; 48h</div>
+      </div>
+
+      <div class="contact-wrap">
+        <h2>Let's<br/><em>Connect</em></h2>
+
+        <div class="channels">
+          <a href="mailto:annagong025@gmail.com"><span class="k">01</span><span>annagong025@gmail.com</span><span class="arr">→</span></a>
+          <a href="https://github.com/anna-gong-intelligence" target="_blank" rel="noopener"><span class="k">02</span><span>github / anna-gong-intelligence</span><span class="arr">→</span></a>
+          <a href="https://linkedin.com/in/anna-gong/" target="_blank" rel="noopener"><span class="k">03</span><span>linkedin / anna-gong</span><span class="arr">→</span></a>
+          <a href="mailto:annagong025@gmail.com?subject=Let's%20connect"><span class="k">04</span><span>open to roles · Senior DS · MLE · AI Engineer</span><span class="arr">→</span></a>
+        </div>
+      </div>
+    </div>
+
+    <div class="contact-foot">
+      <div class="l">© MMXXVI · ΛNNΛ</div>
+      <div class="c">Transmitted from Dallas, TX</div>
+      <div class="r">— fin.</div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============ MENTAT TERMINAL ============ -->
+<div class="mentat-backdrop" id="mentat-backdrop" aria-hidden="true">
+  <div class="mentat" role="dialog" aria-label="Mentat Terminal" aria-modal="true">
+    <div class="mentat-header">
+      <div class="mentat-title">
+        <span class="dot"></span>
+        <span>MENTAT // COGITATION ACTIVE</span>
+      </div>
+      <button class="mentat-close" id="mentat-close" type="button">✕ &nbsp; SEVER</button>
+    </div>
+
+    <div class="mentat-log" id="mentat-log">
+      <div class="msg mentat-msg">
+        <div class="who">MENTAT</div>
+        <div class="text">The spice extends consciousness. I am ANNA's analytical construct — trained on five production AI systems at PACCAR, three years of applied ML, and a CMU graduate education. Ask, and I shall compute without emotion.</div>
+      </div>
+    </div>
+
+    <div class="quick-suggest">
+      <button class="chip" data-q="Tell me about the AI systems you built at PACCAR." type="button">PACCAR·AI</button>
+      <button class="chip" data-q="What LLM and ML tools do you work with?" type="button">STACK</button>
+      <button class="chip" data-q="Tell me about your academic and research projects." type="button">CMU·PROJECTS</button>
+      <button class="chip" data-q="Why the name 'Mentat'?" type="button">MENTAT?</button>
+    </div>
+
+    <div class="mentat-input-row">
+      <span class="prompt">&gt;</span>
+      <input type="text" class="mentat-input" id="mentat-input" placeholder="pose your query to the mentat..." autocomplete="off" />
+    </div>
+  </div>
+</div>
+
+<!-- ============ TWEAKS PANEL ============ -->
+<aside class="tweaks" id="tweaks" aria-label="Tweaks">
+  <h4>Tweaks <span class="dot"></span></h4>
+
+  <div class="group">
+    <div class="row"><span>Theme</span><span class="val" id="val-theme">obsidian</span></div>
+    <div class="theme-switch" id="themeSwitch">
+      <button data-theme="obsidian">Obsidian</button>
+      <button data-theme="sand">Arrakis</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="row"><span>Spice — Accent Opacity</span><span class="val" id="val-spice">1.00</span></div>
+    <input type="range" class="dune" id="s-spice" min="0" max="1" step="0.01" />
+  </div>
+
+  <div class="group">
+    <div class="row"><span>Melange — Flow Intensity</span><span class="val" id="val-si">1.00</span></div>
+    <input type="range" class="dune" id="s-si" min="0" max="2" step="0.01" />
+
+    <div class="row" style="margin-top:14px"><span>Particle Density</span><span class="val" id="val-pd">1.00</span></div>
+    <input type="range" class="dune" id="s-pd" min="0.25" max="1.5" step="0.05" />
+  </div>
+
+  <div class="group">
+    <div class="row"><span>Page Margin · X</span><span class="val" id="val-px">80</span></div>
+    <input type="range" class="dune" id="s-px" min="16" max="160" step="2" />
+  </div>
+
+  <div class="group">
+    <div class="toggle" id="t-snap">
+      <span>Snap · Scroll</span>
+      <span class="sw"></span>
+    </div>
+  </div>
+</aside>
+
+<!-- ============ SCRIPTS ============ -->
+<script>
+/* ================== TWEAKS  ================== */
+(function () {
+  const t = window.__TWEAKS__;
+  const root = document.documentElement;
+
+  function apply() {
+    root.setAttribute('data-theme', t.theme);
+    root.style.setProperty('--spice-a', t.spiceOpacity);
+    root.style.setProperty('--px',      t.sectionPaddingX + 'px');
+
+    const stage = document.getElementById('stage');
+    if (stage) stage.dataset.snap = t.snapScroll ? 'on' : 'off';
+
+    const map = [
+      ['s-spice','val-spice', t.spiceOpacity, v => (+v).toFixed(2)],
+      ['s-si',   'val-si',    t.shaderIntensity, v => (+v).toFixed(2)],
+      ['s-pd',   'val-pd',    t.particleDensity, v => (+v).toFixed(2)],
+      ['s-px',   'val-px',    t.sectionPaddingX, v => Math.round(v) + 'px'],
+    ];
+    map.forEach(([s,v,val,fmt]) => {
+      const se = document.getElementById(s); const ve = document.getElementById(v);
+      if (se && se.value != val) se.value = val;
+      if (ve) ve.textContent = fmt(val);
+    });
+    const tv = document.getElementById('val-theme');
+    if (tv) tv.textContent = t.theme;
+    document.querySelectorAll('#themeSwitch button').forEach(b => {
+      b.classList.toggle('on', b.dataset.theme === t.theme);
+    });
+    const snap = document.getElementById('t-snap');
+    if (snap) snap.classList.toggle('on', !!t.snapScroll);
+
+    // propagate to shader
+    if (window.__melange) window.__melange.setUniforms(t);
+  }
+  apply();
+  window.__applyTweaks = apply;
+
+  function persist(edits) {
+    Object.assign(t, edits);
+    apply();
+    try { window.parent.postMessage({ type:'__edit_mode_set_keys', edits }, '*'); } catch(e){}
+  }
+
+  function bind(id,key,cast){
+    const el = document.getElementById(id); if (!el) return;
+    el.addEventListener('input', ()=>persist({[key]:cast(el.value)}));
+    el.addEventListener('change',()=>persist({[key]:cast(el.value)}));
+  }
+  bind('s-spice','spiceOpacity',parseFloat);
+  bind('s-si',   'shaderIntensity',parseFloat);
+  bind('s-pd',   'particleDensity',parseFloat);
+  bind('s-px',   'sectionPaddingX', v => +v);
+
+  document.querySelectorAll('#themeSwitch button').forEach(b=>{
+    b.addEventListener('click',()=>persist({theme:b.dataset.theme}));
+  });
+  document.getElementById('t-snap').addEventListener('click', ()=>{
+    persist({ snapScroll: !t.snapScroll });
+  });
+
+  // edit-mode protocol
+  const panel = document.getElementById('tweaks');
+  window.addEventListener('message', (e) => {
+    const d = e.data || {};
+    if (d.type === '__activate_edit_mode')   panel.classList.add('open');
+    if (d.type === '__deactivate_edit_mode') panel.classList.remove('open');
+  });
+  try { window.parent.postMessage({ type:'__edit_mode_available' }, '*'); } catch(e){}
+})();
+
+/* ================== SCROLL + SECTION ACTIVE STATE ================== */
+(function () {
+  const stage = document.getElementById('stage');
+  const panels = [...document.querySelectorAll('.panel')];
+  const links = document.querySelectorAll('.nav a[data-link]');
+  const dots  = document.querySelectorAll('.rail .dot');
+
+  function setActive(name) {
+    document.body.dataset.activeSection = name;
+    panels.forEach(p => p.classList.toggle('is-active', p.dataset.section === name));
+    links.forEach(a => a.classList.toggle('on', a.dataset.link === name));
+    dots.forEach(d => d.classList.toggle('on', d.dataset.rail === name));
+  }
+
+  // A panel becomes "active" when it overlaps the middle 20% of the
+  // viewport — works for both normal 100vh panels AND the tall Work
+  // section (which is multiple viewport-heights of content).
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) setActive(e.target.dataset.section);
+    });
+  }, { root: stage, rootMargin: '-40% 0px -40% 0px', threshold: 0 });
+
+  panels.forEach(p => io.observe(p));
+
+  // smooth anchor nav
+  document.querySelectorAll('.nav a[data-link]').forEach(a => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const tgt = document.getElementById(a.dataset.link);
+      if (tgt) tgt.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+})();
+
+/* ================== WEBGL — CINEMATIC ACCRETION DISK ================== */
+(function () {
+  if (!window.THREE) { console.warn('Three.js missing'); return; }
+  const host = document.getElementById('melange');
+  const DPR_CAP = 2;
+
+  const scene  = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+  const renderer = new THREE.WebGLRenderer({
+    antialias: true, alpha: false, powerPreference: 'high-performance'
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, DPR_CAP));
+  renderer.setClearColor(0x030303, 1);
+  host.appendChild(renderer.domElement);
+
+  const uniforms = {
+    u_time:       { value: 0 },
+    u_resolution: { value: new THREE.Vector2(1, 1) },
+    u_mouse:      { value: new THREE.Vector2(0.5, 0.5) },
+    u_intensity:  { value: 1.0 },
+    u_density:    { value: 1.0 },
+    u_spiceA:     { value: 1.0 },
+  };
+
+  const vert = /* glsl */`
+    varying vec2 vUv;
+    void main(){ vUv = uv; gl_Position = vec4(position, 1.0); }
+  `;
+
+  const frag = /* glsl */`
+    precision highp float;
+
+    varying vec2 vUv;
+    uniform float u_time;
+    uniform vec2  u_resolution;
+    uniform vec2  u_mouse;
+    uniform float u_intensity;
+    uniform float u_density;
+    uniform float u_spiceA;
+
+    #define PI 3.14159265359
+
+    // ---------- Hash & noise ----------
+    float hash21(vec2 p){
+      p = fract(p * vec2(234.34, 435.345));
+      p += dot(p, p + 34.23);
+      return fract(p.x * p.y);
+    }
+
+    float vnoise(vec2 p){
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      vec2 u = f*f*(3.0-2.0*f);
+      float a = hash21(i);
+      float b = hash21(i + vec2(1.,0.));
+      float c = hash21(i + vec2(0.,1.));
+      float d = hash21(i + vec2(1.,1.));
+      return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+    }
+
+    float fbm(vec2 p){
+      float v = 0.0, a = 0.5;
+      mat2 rot = mat2(0.8, 0.6, -0.6, 0.8);
+      for (int i = 0; i < 5; i++){
+        v += a * vnoise(p);
+        p  = rot * p * 2.02;
+        a *= 0.5;
+      }
+      return v;
+    }
+
+    void main(){
+      vec2 res = u_resolution;
+      float aspect = res.x / max(res.y, 1.0);
+
+      // centered: (0,0) = screen center; y in [-1,1], x in [-aspect,aspect]
+      vec2 uv = vec2((vUv.x - 0.5) * 2.0 * aspect, (vUv.y - 0.5) * 2.0);
+
+      float r     = length(uv);
+      float theta = atan(uv.y, uv.x);
+
+      // ---- base void ----
+      vec3 col = vec3(0.0118);                                // #030303
+
+      float bgNoise = fbm(uv * 1.3 + vec2(u_time * 0.004, 0.0));
+      col += vec3(0.025, 0.012, 0.005) * smoothstep(0.0, 1.0, bgNoise) * 0.35;
+
+      // ---- anamorphic lens flare (horizontal streak) ----
+      float flareCore = exp(-abs(uv.y) * 80.0);
+      float flareWide = exp(-abs(uv.y) * 18.0) * 0.35;
+      float flareH    = exp(-abs(uv.x) * 0.9);
+      float flare     = (flareCore + flareWide) * flareH;
+      vec3  flareColA = vec3(1.0, 0.55, 0.22);
+      vec3  flareColB = vec3(0.85, 0.18, 0.08);
+      vec3  flareCol  = mix(flareColA, flareColB, smoothstep(0.0, 1.4, abs(uv.x)));
+      col += flareCol * flare * 0.55 * u_intensity;
+
+      // iris ghosts
+      for (int i = 1; i <= 3; i++){
+        float fi = float(i);
+        float sgn = mod(fi, 2.0) < 0.5 ? 1.0 : -1.0;
+        float gx = 0.35 * fi * sgn;
+        vec2 gp = uv - vec2(gx, 0.0);
+        float g = exp(-dot(gp, gp) * 180.0);
+        col += vec3(1.0, 0.4, 0.15) * g * 0.12 * u_intensity;
+      }
+
+      // ---- corona ----
+      float ringRadius = 0.28;
+      float ringWidth  = 0.0024;
+      float breathe    = 0.5 + 0.5 * sin(u_time * 0.25);
+
+      float coronaFalloff = exp(-pow(max(r - ringRadius, 0.0) * 3.2, 1.3));
+      float coronaFBM     = fbm(uv * 2.2 + vec2(u_time * 0.015, -u_time * 0.008));
+      float corona        = coronaFalloff * (0.6 + 0.4 * coronaFBM) * (0.85 + 0.15 * breathe);
+
+      vec3 spiceDeep = vec3(0.502, 0.208, 0.020);
+      col += spiceDeep * corona * 1.35 * u_spiceA;
+
+      float innerRim = exp(-pow(max(r - ringRadius, 0.0) * 35.0, 1.2)) * 0.8;
+      col += vec3(1.0, 0.48, 0.18) * innerRim * (0.85 + 0.15 * breathe) * u_spiceA;
+
+      // ---- melange accretion disk ----
+      float diskInner = ringRadius + 0.010;
+      float diskOuter = 1.05;
+
+      if (r > diskInner && r < diskOuter){
+        float rotSpeed = 0.18 / (r + 0.25);
+        float a = theta + u_time * rotSpeed;
+        float rDrift = r + u_time * 0.012;
+
+        vec2 polar = vec2(a * 14.0, rDrift * 42.0);
+
+        float diskMask = fbm(vec2(a * 2.4, rDrift * 6.0) + vec2(0.0, u_time * 0.05));
+        float radEnv  = smoothstep(diskInner, diskInner + 0.07, r) *
+                         (1.0 - smoothstep(0.55, diskOuter, r));
+        float arm     = 0.7 + 0.3 * cos(a * 1.0 - 0.8);
+        float cloud   = diskMask * radEnv * arm;
+
+        float grainHash  = hash21(polar);
+        float grains     = smoothstep(0.82, 0.98, grainHash);
+
+        float grainHash2 = hash21(polar * 2.3 + 13.7);
+        float grains2    = smoothstep(0.90, 1.00, grainHash2) * 0.6;
+
+        float spice = (grains + grains2) * cloud;
+
+        vec3 spiceHot  = vec3(1.0, 0.72, 0.30);
+        vec3 spiceCool = vec3(0.55, 0.25, 0.08);
+        vec3 spiceCol  = mix(spiceHot, spiceCool, smoothstep(diskInner, 0.7, r));
+
+        col += spiceCol * spice * 1.6 * u_density * u_spiceA;
+        col += spiceCol * cloud * 0.18 * u_spiceA;
+      }
+
+      // ---- eclipse: pin-sharp SDF ring + black interior ----
+      float ringSDF = abs(r - ringRadius) - ringWidth;
+      float px = fwidth(r) * 1.5;
+      float ring = 1.0 - smoothstep(-px, px, ringSDF);
+
+      float blackInterior = 1.0 - smoothstep(
+        ringRadius - ringWidth - px,
+        ringRadius - ringWidth + px,
+        r
+      );
+      col *= (1.0 - blackInterior);
+
+      vec3 bone = vec3(0.918, 0.898, 0.851);
+      float ringGlow = exp(-pow(abs(r - ringRadius) * 180.0, 1.4));
+      col += bone * ringGlow * 0.22;
+      col = mix(col, bone, ring);
+
+      // ---- final grade ----
+      col = pow(col, vec3(0.95));
+      col *= vec3(1.02, 0.99, 0.96);
+
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `;
+
+  const geo = new THREE.PlaneGeometry(2, 2);
+  const mat = new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader:   vert,
+    fragmentShader: frag,
+    depthWrite: false,
+    depthTest:  false,
+    extensions: { derivatives: true }   // fwidth() support on WebGL1
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  scene.add(mesh);
+
+  function resize(){
+    const w = host.clientWidth | 0;
+    const h = host.clientHeight | 0;
+    renderer.setSize(w, h, false);
+    uniforms.u_resolution.value.set(w, h);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  window.addEventListener('pointermove', (e) => {
+    uniforms.u_mouse.value.set(
+      e.clientX / window.innerWidth,
+      1.0 - e.clientY / window.innerHeight
+    );
+  });
+
+  // expose to tweak system (subset — intensity / density / spice opacity)
+  window.__melange = {
+    setUniforms(t) {
+      uniforms.u_intensity.value = t.shaderIntensity;
+      uniforms.u_density.value   = t.particleDensity;
+      uniforms.u_spiceA.value    = t.spiceOpacity;
+    }
+  };
+  window.__melange.setUniforms(window.__TWEAKS__);
+
+  let start = performance.now();
+  let running = true;
+  document.addEventListener('visibilitychange', () => {
+    running = !document.hidden;
+    if (running) start = performance.now() - uniforms.u_time.value * 1000;
+  });
+
+  function loop(now){
+    if (running){
+      uniforms.u_time.value = (now - start) / 1000;
+      renderer.render(scene, camera);
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+
+/* ================== MENTAT TERMINAL ================== */
+(function () {
+  const awakenBtn = document.getElementById('awaken-btn');
+  const backdrop  = document.getElementById('mentat-backdrop');
+  const closeBtn  = document.getElementById('mentat-close');
+  const logEl     = document.getElementById('mentat-log');
+  const inputEl   = document.getElementById('mentat-input');
+  const chips     = document.querySelectorAll('.chip');
+
+  if (!awakenBtn || !backdrop) return;
+
+  function openMentat()  {
+    backdrop.classList.add('active');
+    backdrop.setAttribute('aria-hidden', 'false');
+    setTimeout(() => inputEl && inputEl.focus(), 400);
+  }
+  function closeMentat() {
+    backdrop.classList.remove('active');
+    backdrop.setAttribute('aria-hidden', 'true');
+  }
+
+  awakenBtn.addEventListener('click', openMentat);
+  closeBtn .addEventListener('click', closeMentat);
+  backdrop .addEventListener('click', (e) => { if (e.target === backdrop) closeMentat(); });
+  document .addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMentat(); });
+
+  // Local "Mentat" responses — curated, on-brand
+  const MENTAT_KB = [
+    { keys: ['rec','recommend','recsys','recommendation'],
+      reply: `ANNA has architected recommendation systems at scale — two-tower retrieval models,
+gradient-boosted rankers, and sequence-aware transformers for session-based recs.
+
+Her domain: the subtle art of matching user intent to item manifolds.
+Techniques of note:
+  · candidate generation via ANN (FAISS / ScaNN)
+  · multi-objective ranking (CTR × dwell × diversity)
+  · cold-start mitigation through content embeddings
+  · online A/B harnesses with CUPED variance reduction
+
+Plans within plans, each signal weighed.` },
+
+    { keys: ['infra','infrastructure','pipeline','mlops','ml infra'],
+      reply: `Her ML infrastructure lineage spans the full stack:
+
+  · feature stores (Feast, bespoke implementations)
+  · training orchestration (Airflow, Kubeflow, Ray)
+  · model serving (Triton, TorchServe, vLLM for LLMs)
+  · monitoring & drift detection (Evidently, custom dashboards)
+  · infrastructure-as-code (Terraform, Kubernetes, Helm)
+
+The arrakeen of ML: where raw data becomes reliable intelligence.` },
+
+    { keys: ['stack','framework','tool','language','tech'],
+      reply: `Her armamentarium:
+
+  LANGUAGES     python · go · sql · rust (selectively)
+  ML FRAMEWORK  pytorch · jax · xgboost · lightgbm · sklearn
+  DATA          spark · duckdb · dbt · kafka · flink
+  CLOUD         aws · gcp · kubernetes
+  LLM           transformers · langchain · vllm · lora fine-tuning
+
+The weapon is chosen with care. The problem dictates the instrument.` },
+
+    { keys: ['mentat','why mentat','dune','name'],
+      reply: `"It is by will alone I set my mind in motion.
+ It is by the juice of sapho that thoughts acquire speed,
+ the lips acquire stains, the stains become a warning."
+
+In Herbert's universe, Mentats are human computers — trained to reason where
+machines were forbidden. A fitting metaphor for a Data Scientist: to think
+precisely, to see patterns in the data the way a navigator sees paths in the spice.` },
+
+    { keys: ['project','work','portfolio','experience'],
+      reply: `Selected sightings across her trajectory:
+
+  · Retrieval-ranking rec system serving 10M+ DAU
+  · Real-time feature pipelines with sub-100ms p99 latency
+  · LLM-powered search reformulation (+18% CTR uplift)
+  · Uplift modeling for marketing personalization
+  · Graph neural networks for fraud signal propagation
+
+Fuller dossiers will be unsealed on request.` },
+
+    { keys: ['contact','email','reach','hire','linkedin'],
+      reply: `Channels of transmission are opened via the main portfolio sigil.
+Scroll beyond this hero section to access the manifest of ways to summon her.
+
+The spice must flow. So too must signal reach recipient.` },
+
+    { keys: ['hello','hi','hey','greetings'],
+      reply: `The sleeper has awakened. Speak your query — I shall cogitate upon it.` },
+  ];
+
+  function mentatReply(query){
+    const q = query.toLowerCase();
+    for (const entry of MENTAT_KB) {
+      if (entry.keys.some(k => q.includes(k))) return entry.reply;
+    }
+    return `My cogitations yield no direct match for that query, traveler.
+Ask me of:  recommendation systems · ML infrastructure · stack · projects · or why I am called Mentat.
+
+The spice reveals only what the mind is prepared to receive.`;
+  }
+
+  function appendMsg(who, isMentat=false){
+    const div = document.createElement('div');
+    div.className = 'msg ' + (isMentat ? 'mentat-msg' : 'user-msg');
+    div.innerHTML = `<div class="who">${who}</div><div class="text"></div>`;
+    logEl.appendChild(div);
+    logEl.scrollTop = logEl.scrollHeight;
+    return div.querySelector('.text');
+  }
+
+  function typeInto(el, text, speed=12){
+    return new Promise(resolve => {
+      let i = 0;
+      const cursor = document.createElement('span');
+      cursor.className = 'cursor-blink';
+      el.appendChild(cursor);
+      const tick = () => {
+        if (i >= text.length){ cursor.remove(); resolve(); return; }
+        cursor.remove();
+        el.appendChild(document.createTextNode(text[i]));
+        el.appendChild(cursor);
+        logEl.scrollTop = logEl.scrollHeight;
+        i++;
+        setTimeout(tick, speed + Math.random() * 8);
+      };
+      tick();
+    });
+  }
+
+  async function submitQuery(q){
+    if (!q.trim()) return;
+    const userEl = appendMsg('QUERY', false);
+    userEl.textContent = q;
+    logEl.scrollTop = logEl.scrollHeight;
+
+    const mentatEl = appendMsg('MENTAT', true);
+    const pauseEl  = document.createElement('span');
+    pauseEl.textContent = 'cogitating';
+    pauseEl.style.color = 'var(--spice-amber)';
+    pauseEl.style.opacity = '0.7';
+    mentatEl.appendChild(pauseEl);
+    const dots = document.createElement('span');
+    dots.style.color = 'var(--spice-amber)';
+    mentatEl.appendChild(dots);
+    let dotCount = 0;
+    const dotInterval = setInterval(() => {
+      dotCount = (dotCount + 1) % 4;
+      dots.textContent = '.'.repeat(dotCount);
+    }, 180);
+
+    await new Promise(r => setTimeout(r, 900 + Math.random() * 500));
+    clearInterval(dotInterval);
+    mentatEl.innerHTML = '';
+
+    await typeInto(mentatEl, mentatReply(q), 10);
+  }
+
+  inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter'){
+      const v = inputEl.value;
+      inputEl.value = '';
+      submitQuery(v);
+    }
+  });
+
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      submitQuery(chip.getAttribute('data-q'));
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
