@@ -1,0 +1,180 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient (Deep Space Black) -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#080808" />
+      <stop offset="50%" stop-color="#020202" />
+      <stop offset="100%" stop-color="#050505" />
+    </linearGradient>
+
+    <!-- 1. Custom RGB Split / Chromatic Aberration Filter (Kept from preferred version) -->
+    <filter id="rgb-glitch" x="-20%" y="-20%" width="140%" height="140%">
+      <feOffset in="SourceGraphic" dy="0" result="red-shift">
+        <animate attributeName="dx" values="0; 12; -4; 18; 0" dur="3s" repeatCount="indefinite" />
+      </feOffset>
+      <feOffset in="SourceGraphic" dy="0" result="blue-shift">
+        <animate attributeName="dx" values="0; -15; 8; -10; 0" dur="2.4s" repeatCount="indefinite" />
+      </feOffset>
+      <feOffset in="SourceGraphic" dx="0" dy="0" result="green-shift" />
+
+      <feColorMatrix in="red-shift" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="red-only" />
+      <feColorMatrix in="green-shift" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="green-only" />
+      <feColorMatrix in="blue-shift" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="blue-only" />
+
+      <feBlend in="red-only" in2="green-only" mode="screen" result="rg" />
+      <feBlend in="rg" in2="blue-only" mode="screen" result="rgb" />
+    </filter>
+
+    <!-- 2. Heavy Pixel Datamosh Filter (For extreme text tearing) -->
+    <filter id="heavy-glitch" x="-50%" y="-50%" width="200%" height="200%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.05 0.95" numOctaves="2" result="noise">
+        <animate attributeName="baseFrequency" values="0.05 0.95; 0.2 0.1; 0.01 1.8; 0.05 0.95" dur="1.5s" repeatCount="indefinite"/>
+      </feTurbulence>
+      <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 15 -5" in="noise" result="coloredNoise"/>
+      <feDisplacementMap in="SourceGraphic" in2="coloredNoise" scale="120" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+
+    <!-- 3. NEW: The Silver Particle Coalescence Filter -->
+    <!-- Converts the text into fine dust, then violently snaps it together -->
+    <filter id="particle-coalesce" x="-100%" y="-100%" width="300%" height="300%">
+      <!-- High frequency noise creates the "ultra-fine silver particles" look -->
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" result="dustNoise">
+        <!-- Slight animation of the frequency makes the dust shimmer while scattered -->
+        <animate attributeName="baseFrequency" values="0.9; 0.95; 0.9" dur="4s" repeatCount="indefinite"/>
+      </feTurbulence>
+      
+      <!-- Displace the graphic using the dust noise. 
+           Scale starts at a massive 1500 (completely atomized), 
+           snaps to 0 (perfectly formed), holds, and explodes again -->
+      <feDisplacementMap in="SourceGraphic" in2="dustNoise" scale="1500" xChannelSelector="R" yChannelSelector="G">
+        <animate attributeName="scale" 
+                 values="1500; 1500; 0; 0; 1500" 
+                 keyTimes="0; 0.15; 0.18; 0.92; 1" 
+                 dur="6s" repeatCount="indefinite" />
+      </feDisplacementMap>
+    </filter>
+
+    <!-- Horizontal Slicing Clip Paths for Tearing the Image -->
+    <clipPath id="s1"><rect x="0" y="0" width="1920" height="150"/></clipPath>
+    <clipPath id="s2"><rect x="0" y="150" width="1920" height="20"/></clipPath>
+    <clipPath id="s3"><rect x="0" y="170" width="1920" height="120"/></clipPath>
+    <clipPath id="s4"><rect x="0" y="290" width="1920" height="15"/></clipPath>
+    <clipPath id="s5"><rect x="0" y="305" width="1920" height="135"/></clipPath>
+    <clipPath id="s6"><rect x="0" y="440" width="1920" height="40"/></clipPath>
+    <clipPath id="s7"><rect x="0" y="480" width="1920" height="90"/></clipPath>
+    <clipPath id="s8"><rect x="0" y="570" width="1920" height="30"/></clipPath>
+    <clipPath id="s9"><rect x="0" y="600" width="1920" height="150"/></clipPath>
+    <clipPath id="s10"><rect x="0" y="750" width="1920" height="25"/></clipPath>
+    <clipPath id="s11"><rect x="0" y="775" width="1920" height="305"/></clipPath>
+
+    <!-- Master Base (Text + Piercing Line, enveloped in the particle filter) -->
+    <g id="portrait-base">
+      <g filter="url(#particle-coalesce)">
+        <!-- The piercing horizontal line -->
+        <!-- Subtle thick glow line -->
+        <rect x="0" y="534" width="1920" height="12" fill="#FFFFFF" opacity="0.1" />
+        <!-- Sharp primary line cutting right through the center -->
+        <rect x="0" y="538" width="1920" height="4" fill="#FFFFFF" />
+
+        <!-- CENTRAL TEXT -->
+        <text x="960" y="540" font-family="'Impact', 'Arial Black', sans-serif" font-size="240" font-weight="900" text-anchor="middle" letter-spacing="25" dominant-baseline="central" fill="#FFFFFF" style="mix-blend-mode: difference;" class="text-flicker">fffocusss</text>
+        
+        <!-- Ghosted outline behind text for layered depth -->
+        <text x="960" y="540" font-family="'Impact', 'Arial Black', sans-serif" font-size="240" font-weight="900" text-anchor="middle" letter-spacing="25" dominant-baseline="central" fill="none" stroke="#FFFFFF" stroke-width="4" transform="translate(15, -15)" opacity="0.4">fffocusss</text>
+      </g>
+    </g>
+  </defs>
+
+  <style>
+    /* Slice Animations for Horizontal Glitch Tearing */
+    .slice-fast-jitter { animation: fast-jitter 0.1s infinite alternate; }
+    .slice-slow-drift { animation: slow-drift 5s infinite alternate ease-in-out; }
+    .slice-glitch-snap { animation: glitch-snap 3.5s infinite; }
+    .slice-vibrate { animation: vibrate 0.05s infinite alternate; }
+
+    @keyframes fast-jitter {
+      0% { transform: translateX(-15px); }
+      100% { transform: translateX(20px); }
+    }
+    @keyframes slow-drift {
+      0% { transform: translateX(-40px); }
+      100% { transform: translateX(50px); }
+    }
+    @keyframes glitch-snap {
+      0%, 88%, 100% { transform: translateX(0); }
+      90% { transform: translateX(80px) skewX(-15deg); filter: brightness(1.5); }
+      93% { transform: translateX(-60px) skewX(5deg); }
+    }
+    @keyframes vibrate {
+      0% { transform: translate(-3px, 0); }
+      100% { transform: translate(3px, 0); }
+    }
+
+    /* Text Flicker */
+    .text-flicker { animation: text-flash 5s infinite; }
+    @keyframes text-flash {
+      0%, 94%, 100% { opacity: 1; }
+      95%, 97% { opacity: 0; }
+      96%, 98% { opacity: 0.9; }
+    }
+  </style>
+
+  <!-- 1. Background Layers -->
+  <rect width="1920" height="1080" fill="url(#bgGrad)" />
+
+  <!-- High-contrast background noise to give it the "static void" feeling -->
+  <filter id="bg-static">
+    <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="3" result="static" />
+    <feColorMatrix type="matrix" values="0.8 0 0 0 0  0 0.8 0 0 0  0 0.8 0 0 0  0 0 0 1 0" in="static" result="monoStatic" />
+  </filter>
+  <rect width="1920" height="1080" filter="url(#bg-static)" opacity="0.15" style="mix-blend-mode: screen;" />
+
+  <!-- 2. Master Render Group (Applies RGB Aberration to all fragments simultaneously) -->
+  <g filter="url(#rgb-glitch)">
+    
+    <!-- Static Image Base Segments -->
+    <g clip-path="url(#s1)"><use href="#portrait-base"/></g>
+    <g clip-path="url(#s3)"><use href="#portrait-base"/></g>
+    <g clip-path="url(#s5)"><use href="#portrait-base"/></g>
+    <g clip-path="url(#s7)"><use href="#portrait-base"/></g>
+    <g clip-path="url(#s9)"><use href="#portrait-base"/></g>
+    <g clip-path="url(#s11)"><use href="#portrait-base"/></g>
+
+    <!-- Animated / Glitched Slices -->
+    <g clip-path="url(#s2)" class="slice-fast-jitter"><use href="#portrait-base"/></g>
+    <g clip-path="url(#s4)" class="slice-slow-drift"><use href="#portrait-base"/></g>
+    <g clip-path="url(#s6)" class="slice-glitch-snap"><use href="#portrait-base"/></g>
+    <g clip-path="url(#s10)" class="slice-fast-jitter"><use href="#portrait-base"/></g>
+
+    <!-- Extreme Datamoshed Slice (Hits the text layer) -->
+    <g clip-path="url(#s8)" class="slice-vibrate">
+      <use href="#portrait-base" filter="url(#heavy-glitch)" />
+      <!-- Extra bright artifact line to emphasize the tear -->
+      <rect x="0" y="580" width="1920" height="8" fill="#FFFFFF" style="mix-blend-mode: overlay;"/>
+    </g>
+  </g>
+
+  <!-- 3. Global Post-Processing Overlays -->
+  
+  <!-- CRT Scanlines -->
+  <pattern id="scanlines" width="4" height="4" patternUnits="userSpaceOnUse">
+    <rect width="4" height="2" fill="#000000" fill-opacity="0.5" />
+  </pattern>
+  <rect width="1920" height="1080" fill="url(#scanlines)" style="pointer-events: none;" />
+
+  <!-- Heavy Pixel Noise / Film Grain overlay -->
+  <filter id="grain">
+    <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="2" result="noise" />
+    <feColorMatrix type="matrix" values="0.33 0.33 0.33 0 0   0.33 0.33 0.33 0 0   0.33 0.33 0.33 0 0   0 0 0 0.4 0" in="noise" result="monoNoise" />
+    <feBlend in="SourceGraphic" in2="monoNoise" mode="screen" />
+  </filter>
+  <rect width="1920" height="1080" fill="none" filter="url(#grain)" style="pointer-events: none;" />
+
+  <!-- Deep Vignette for focus -->
+  <radialGradient id="vignette" cx="50%" cy="50%" r="70%">
+    <stop offset="60%" stop-color="#000" stop-opacity="0" />
+    <stop offset="100%" stop-color="#000" stop-opacity="0.95" />
+  </radialGradient>
+  <rect width="1920" height="1080" fill="url(#vignette)" style="pointer-events: none;" />
+
+</svg>
