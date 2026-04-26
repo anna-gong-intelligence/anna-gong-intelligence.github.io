@@ -1185,31 +1185,121 @@
     .nav ul { gap: 20px; }
     .nav .brand { font-size: 9px; letter-spacing: 0.26em; }
   }
+  /* ── Tablet / large phone ───────────────────────────────── */
   @media (max-width: 800px) {
-    :root { --px: 24px; }
+    :root { --px: 20px; }
     .stage[data-snap="on"] { scroll-snap-type: none; }
     .panel { height: auto; min-height: 100vh; }
-    .nav .coord { display: none; }
+
+    /* Nav — tighten links so they don't overflow */
+    .nav { padding: 18px var(--px); }
+    .nav ul { gap: 14px; letter-spacing: 0.18em; }
+    .nav .num { display: none; }            /* hide "01" "02" numbers */
+    .nav .brand { font-size: 8.5px; letter-spacing: 0.2em; }
+
+    /* Hero */
+    .hero { padding: 0 var(--px); }
+    .hero .panel-inner { padding: 70px 0 40px; }
+    .hero-top { top: 70px; }
+    .hero-aside .meta { display: none; }    /* hide STATUS/UPLINK on tablet */
+    .hero-monolith .row { grid-template-columns: repeat(4, 1rem); }
+    .hero-monolith .row span { font-size: 0.65rem; }
+    .hero-tagline { font-size: 8.5px; letter-spacing: 0.22em; }
+    .awaken { font-size: 9px; letter-spacing: 0.18em; padding: 0.5rem 0.9rem; }
+
+    /* About */
     .about-card { grid-template-columns: 1fr; }
     .about-card .cell, .about-card .lede, .about-card .side { border-right: 0; }
-    .about-card .lede, .about-card .side { grid-column: 1; grid-row: auto; padding: 28px 24px; }
+    .about-card .lede, .about-card .side { grid-column: 1; grid-row: auto; padding: 24px 20px; }
     .about-card .strip { grid-template-columns: 1fr 1fr; }
     .about-card .strip > div:nth-child(2) { border-right: 0; }
     .about-card .strip > div:nth-child(-n+2) { border-bottom: 1px solid var(--rule); }
+
+    /* Work */
+    .work .panel-inner { padding: 80px 0 60px; }
     .case-grid { grid-template-columns: 1fr; }
-    .case-card { min-height: 220px; padding: 28px 24px 24px; }
+    .case-card { min-height: auto; padding: 24px 20px 20px; }
     .mini-grid, .intern-strip, .edu-strip { grid-template-columns: 1fr; }
     .work-foot { grid-template-columns: 1fr; }
     .work-foot > div { border-right: none; border-bottom: 1px solid var(--rule); padding: 14px 0; }
     .work-foot > div:last-child { border-bottom: none; }
-    .contact-wrap { grid-template-columns: 1fr; gap: 40px; }
-    .hero { padding: 0 24px; }
-    .hero .panel-inner { padding: 80px 0 40px; }
-    .hero-monolith .row { grid-template-columns: repeat(4, 1rem); }
-    .hero-monolith .row span { font-size: 0.65rem; }
-    .hero-coords, .hero-aside { font-size: 9px; }
-    .hero-tagline { font-size: 8.5px; letter-spacing: 0.25em; }
-    .tweaks { left: 16px; right: 16px; width: auto; bottom: 16px; }
+    .work-sub { margin-top: 40px; }
+
+    /* Contact */
+    .contact-wrap { grid-template-columns: 1fr; gap: 32px; }
+
+    /* Tweaks — push to bottom, full width */
+    .tweaks { left: 16px; right: 16px; width: auto; bottom: 16px; max-height: 60vh; overflow-y: auto; }
+  }
+
+  /* ── Phone (≤ 480px) — aggressive fixes ─────────────────── */
+  @media (max-width: 480px) {
+    :root { --px: 16px; }
+
+    /* Nav — hide all links, just brand. Clean and uncluttered. */
+    .nav { grid-template-columns: 1fr; padding: 16px var(--px); }
+    .nav ul { display: none; }
+    .nav .brand { font-size: 8px; letter-spacing: 0.16em; }
+
+    /* Side rail — hide on phone */
+    .rail { display: none; }
+
+    /* Hero — center everything, stack vertically */
+    .hero { padding: 0 var(--px); }
+    .hero .panel-inner { padding: 60px 0 32px; }
+    .hero-top {
+      top: 60px; left: var(--px); right: var(--px);
+      justify-content: flex-end;
+    }
+    .hero-monolith .row { grid-template-columns: repeat(4, 0.9rem); }
+    .hero-monolith .row span { font-size: 0.6rem; letter-spacing: 0.05em; }
+    .hero-monolith { gap: 0.6rem; }
+    .hero-bottom { bottom: 40px; }
+    .hero-tagline { font-size: 7.5px; letter-spacing: 0.14em; }
+    .awaken {
+      font-size: 8.5px; letter-spacing: 0.14em;
+      padding: 0.45rem 0.75rem; margin-top: 0.4rem;
+    }
+
+    /* About — single column, compact */
+    .about .panel-inner { padding: 80px 0 40px; }
+    .panel-head .title { font-size: clamp(16px, 4vw, 22px); letter-spacing: 0.12em; }
+    .about-card .cell { padding: 20px 16px; }
+    .about-card .lede { font-size: 11px; line-height: 1.7; padding: 20px 16px; }
+    .about-card .side .row { flex-direction: column; gap: 2px; padding: 10px 16px; }
+    .about-card .strip { grid-template-columns: 1fr 1fr; }
+    .about-card .strip .big { font-size: clamp(22px, 6vw, 32px); }
+
+    /* Work — single column, compact cards */
+    .work .panel-inner { padding: 70px 0 40px; }
+    .case-card { padding: 20px 16px 18px; }
+    .case-card .t { font-size: 15px; letter-spacing: 0.1em; }
+    .case-card .d { font-size: 9.5px; }
+    .case-card .metric .v { font-size: 26px; }
+    .case-card .tags { font-size: 7.5px; letter-spacing: 0.2em; }
+    .mini-card { padding: 18px 16px 16px; }
+    .intern-item { padding: 18px 16px; }
+    .intern-item .i-pt { font-size: 9px; }
+    .edu-item { padding: 20px 16px 18px; }
+    .edu-school { font-size: 15px; letter-spacing: 0.1em; }
+    .work-sub-head .wsh-label { font-size: 8px; letter-spacing: 0.28em; }
+    .work-foot .v { font-size: 15px; }
+
+    /* Contact */
+    .contact .panel-inner { padding: 70px 0 40px; }
+    .contact-wrap h2 { font-size: clamp(28px, 8vw, 40px); }
+    .channels a { padding: 14px 0; font-size: 9.5px; letter-spacing: 0.16em; }
+
+    /* Mentat terminal — full screen on phone */
+    .mentat {
+      width: 100vw; height: 100dvh;
+      max-width: 100%; max-height: 100%;
+      border-left: 0; border-right: 0; border-bottom: 0;
+    }
+    .mentat-backdrop { align-items: flex-end; }
+
+    /* Tweaks — hidden on phone (not useful on touch) */
+    .tweaks { display: none; }
   }
 </style>
 </head>
